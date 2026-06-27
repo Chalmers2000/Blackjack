@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blackjack</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="page-layout">
+<div class="game-col">
+<div class="table-wrap" role="main">
+  <!-- HEADER -->
+  <div class="header">
+    <h1>BLACKJACK</h1>
+    <div class="header-info">
+      <span>Balance: <span class="bankroll-val" id="bankrollDisplay">$1,000</span></span>
+      <span id="shoeDisplay">Shoe: 312</span>
+    </div>
+  </div>
+
+  <!-- CARD TABLE -->
+  <div class="card-table">
+    <div class="odds-badge" id="oddsBadge">
+      <span class="odds-label">Win Chance</span>
+      <span class="odds-val" id="oddsVal">—</span>
+    </div>
+
+    <div class="hand-zone dealer-zone">
+      <div class="hand-label dealer-label">Dealer</div>
+      <div class="cards-row" id="dealerCards"></div>
+      <div class="hand-total" id="dealerTotal"></div>
+    </div>
+
+    <div class="player-hands-row" id="playerHandsRow">
+      <!-- Player hand-zones injected dynamically -->
+    </div>
+
+    <!-- Result Banner -->
+    <div class="result-banner" id="resultBanner">
+      <div id="resultText"></div>
+      <div class="result-payout" id="resultPayout"></div>
+    </div>
+  </div>
+
+  <!-- PLAYER ACTIONS (hit/stand/double/split) -->
+  <div class="player-action-row" id="playerActionRow" style="display:none">
+    <button class="btn btn-hit" id="btnHit">Hit</button>
+    <button class="btn btn-stand" id="btnStand">Stand</button>
+    <button class="btn btn-double" id="btnDouble">Double Down</button>
+    <button class="btn btn-split" id="btnSplit">Split</button>
+  </div>
+
+  <!-- BETTING AREA -->
+  <div class="betting-area">
+    <div class="chips-row">
+      <button class="chip chip-5" data-chip="5" aria-label="Bet $5">$5</button>
+      <button class="chip chip-25" data-chip="25" aria-label="Bet $25">$25</button>
+      <button class="chip chip-100" data-chip="100" aria-label="Bet $100">$100</button>
+      <button class="chip chip-500" data-chip="500" aria-label="Bet $500">$500</button>
+    </div>
+    <div class="bet-display" id="betDisplay">Place your bet</div>
+    <div class="action-row">
+      <button class="btn btn-clear" id="btnClear" disabled>Clear</button>
+      <button class="btn btn-rebet" id="btnRebet" style="display:none">Rebet &amp; Deal</button>
+      <button class="btn btn-deal" id="btnDeal" disabled>Deal</button>
+    </div>
+  </div>
+
+  <!-- SCOREBOARD -->
+  <div class="scoreboard">
+    <div class="history-table-wrap">
+      <table class="history-table" id="historyTable">
+        <tbody>
+          <tr class="history-row result-row">
+            <td class="row-label">Round</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="stats-row">
+      <span class="stat-win">Wins <span class="stat-val" id="statW">0</span></span>
+      <span class="stat-loss">Losses <span class="stat-val" id="statL">0</span></span>
+      <span class="stat-push">Pushes <span class="stat-val" id="statP">0</span></span>
+      <span class="stat-bj">Blackjacks <span class="stat-val" id="statBJ">0</span></span>
+      <span>Rounds <span class="stat-val" id="statR">0</span></span>
+      <span class="stat-pnl">P&amp;L <span class="stat-val" id="statPnl">$0</span></span>
+    </div>
+  </div>
+</div>
+</div><!-- /game-col -->
+
+<!-- RULES PANEL -->
+<aside class="rules-panel" id="rulesPanel">
+  <button class="rules-close" id="rulesClose" aria-label="Close rules">✕ Close</button>
+  <div class="rules-title"><span class="icon">📖</span> How to Play</div>
+
+  <div class="rules-section">
+    <h3>The Objective</h3>
+    <p>Beat the dealer by getting a hand value closer to <strong style="color:var(--gold-light)">21</strong> than theirs — without going over.</p>
+  </div>
+
+  <div class="rules-section">
+    <h3>How to Bet</h3>
+    <ul>
+      <li>Click chips to set your wager (clicks stack)</li>
+      <li>Press <strong>Deal</strong> to play the round</li>
+    </ul>
+  </div>
+
+  <hr class="rules-divider">
+
+  <div class="rules-section">
+    <h3>Card Values</h3>
+    <ul>
+      <li><strong>2–10</strong> = face value</li>
+      <li><strong>J, Q, K</strong> = 10 points</li>
+      <li><strong>Ace</strong> = 1 or 11 (whichever helps your hand)</li>
+    </ul>
+  </div>
+
+  <hr class="rules-divider">
+
+  <div class="rules-section">
+    <h3>Your Turn</h3>
+    <ul>
+      <li><strong>Hit</strong> — take another card</li>
+      <li><strong>Stand</strong> — keep your total and end your turn</li>
+      <li><strong>Double Down</strong> — double your bet, take exactly one more card, then stand (first two cards only)</li>
+      <li><strong>Split</strong> — if your first two cards share the same rank, split them into two separate hands, each with its own bet (one split per round)</li>
+    </ul>
+  </div>
+
+  <div class="rules-section">
+    <h3>Dealer Rules</h3>
+    <p>The dealer reveals their hidden card after your turn ends, then must hit on 16 or below and stand on all 17s (no choice involved).</p>
+  </div>
+
+  <hr class="rules-divider">
+
+  <div class="rules-section">
+    <h3>Payouts</h3>
+    <div class="payout-row"><span class="bet-label">Blackjack (natural 21)</span><span>3 : 2</span></div>
+    <div class="payout-row"><span class="bet-label">Regular win</span><span>1 : 1</span></div>
+    <div class="payout-row"><span class="bet-label">Push</span><span>Bet returned</span></div>
+    <p style="margin-top:6px">A "natural" blackjack is an Ace + 10-value card on your first two cards (before any split). If the dealer also has blackjack, it's a push.</p>
+  </div>
+
+  <hr class="rules-divider">
+
+  <div class="rules-section">
+    <h3>Win Chance</h3>
+    <p>The corner badge estimates your chance of winning the current hand outright (pushes excluded) by simulating thousands of outcomes from the actual cards left in the shoe. It updates after every card dealt to your active hand.</p>
+  </div>
+
+  <hr class="rules-divider">
+
+  <div class="rules-section">
+    <h3>Keyboard Shortcuts</h3>
+    <ul>
+      <li><span class="rules-kbd">D</span> Deal &nbsp; <span class="rules-kbd">C</span> Clear &nbsp; <span class="rules-kbd">R</span> Rebet</li>
+      <li><span class="rules-kbd">H</span> Hit &nbsp; <span class="rules-kbd">S</span> Stand &nbsp; <span class="rules-kbd">2</span> Double &nbsp; <span class="rules-kbd">P</span> Split</li>
+    </ul>
+  </div>
+</aside>
+
+</div><!-- /page-layout -->
+
+<!-- OVERLAYS -->
+<div class="overlay" id="gameOverOverlay">
+  <h2>BANKRUPT</h2>
+  <p>Your balance has reached $0.</p>
+  <button class="btn-new-game" id="btnNewGame">New Game — $1,000</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<button class="btn-speed" id="btnSpeed" title="Toggle fast mode">⚡ Normal</button>
+<button class="rules-toggle" id="rulesToggle">📖 Rules</button>
+
+<!-- ARIA LIVE -->
+<div class="sr-only" aria-live="polite" id="ariaLive"></div>
+
+<script src="js/constants.js"></script>
+<script src="js/shoe.js"></script>
+<script src="js/hand.js"></script>
+<script src="js/odds.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/game.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
