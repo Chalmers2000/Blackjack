@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Baccarat — Punto Banco</title>
+<style>
+/* ===== RESET & ROOT ===== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --felt-green:#1a5c2e;
+  --felt-dark:#0f3d1c;
+  --felt-light:#237a3b;
+  --gold:#d4a843;
+  --gold-light:#f0d68a;
+  --gold-dim:#8a6d2b;
+  --card-white:#f5f1eb;
+  --card-shadow:rgba(0,0,0,.45);
+  --text-light:#eee8d5;
+  --text-dim:#a09880;
+  --player-blue:#4a90d9;
+  --player-blue-glow:#4a90d966;
+  --banker-red:#c0392b;
+  --banker-red-glow:#c0392b66;
+  --tie-green:#27ae60;
+  --tie-green-glow:#27ae6066;
+  --win-glow:#f1c40f;
+  --chip-5:#d63031;
+  --chip-25:#00b894;
+  --chip-100:#2d3436;
+  --chip-500:#6c5ce7;
+  --bg-dark:#0a0a0a;
+  --card-w:clamp(60px,11vw,88px);
+  --card-h:clamp(88px,16vw,130px);
+  --card-radius:6px;
+  --anim-speed:4;
+}
+html{height:100%}
+body{
+  min-height:100%;display:flex;flex-direction:column;align-items:center;
+  font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+  background:var(--bg-dark);color:var(--text-light);
+  overflow-x:hidden;
+}
+.page-layout{
+  display:flex;gap:clamp(12px,2vw,24px);
+  width:100%;max-width:1280px;
+  padding:clamp(8px,1.5vw,20px);
+  align-items:flex-start;
+  justify-content:center;
+}
+.game-col{flex:1 1 0;min-width:0;max-width:860px}
+button{font-family:inherit;cursor:pointer;border:none;outline:none;background:none;color:inherit}
+button:disabled{opacity:.4;cursor:not-allowed}
+
+/* ===== FELT TABLE ===== */
+.table-wrap{
+  width:100%;max-width:860px;
+  background:
+    radial-gradient(ellipse at 30% 40%,var(--felt-light) 0%,transparent 50%),
+    radial-gradient(ellipse at 70% 60%,var(--felt-light) 0%,transparent 50%),
+    repeating-conic-gradient(var(--felt-green) 0% 25%,var(--felt-dark) 0% 50%) 0 0/4px 4px,
+    var(--felt-green);
+  border:3px solid var(--gold-dim);
+  border-radius:18px;
+  padding:clamp(12px,2vw,24px);
+  position:relative;
+  box-shadow:0 0 60px rgba(0,0,0,.6),inset 0 0 80px rgba(0,0,0,.25);
+}
+
+/* ===== HEADER ===== */
+.header{
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;
+  padding-bottom:clamp(8px,1.5vw,16px);
+  border-bottom:1px solid #ffffff18;
+  margin-bottom:clamp(8px,1.5vw,16px);
+}
+.header h1{
+  font-family:Georgia,"Times New Roman",serif;
+  font-size:clamp(1.3rem,3.5vw,2rem);
+  letter-spacing:.25em;
+  color:var(--gold);
+  text-shadow:0 2px 8px rgba(0,0,0,.5);
+  font-weight:400;
+}
+.header-info{display:flex;gap:clamp(10px,2vw,24px);align-items:center;flex-wrap:wrap}
+.header-info span{font-size:clamp(.7rem,1.6vw,.85rem);color:var(--text-dim)}
+.bankroll-val{color:var(--gold-light)!important;font-weight:700;font-size:clamp(.85rem,2vw,1.1rem)!important}
+
+/* ===== CARD TABLE ===== */
+.card-table{
+  display:flex;justify-content:center;gap:clamp(16px,5vw,60px);
+  padding:clamp(10px,2vw,24px) 0;
+  min-height:clamp(160px,28vw,240px);
+  position:relative;
+}
+.hand-zone{text-align:center;min-width:clamp(120px,22vw,200px)}
+.hand-label{
+  font-family:Georgia,"Times New Roman",serif;
+  font-size:clamp(.75rem,1.8vw,1rem);
+  text-transform:uppercase;letter-spacing:.15em;
+  margin-bottom:8px;font-weight:400;
+}
+.hand-label.player-label{color:var(--player-blue)}
+.hand-label.banker-label{color:var(--banker-red)}
+.cards-row{
+  display:flex;justify-content:center;gap:clamp(3px,.6vw,6px);
+  min-height:var(--card-h);align-items:flex-end;
+  perspective:600px;
+}
+.hand-total{
+  margin-top:8px;font-size:clamp(1.1rem,2.5vw,1.6rem);font-weight:700;
+  min-height:1.8em;
+  transition:opacity .3s;
+}
+.hand-total.natural{color:var(--win-glow);text-shadow:0 0 10px var(--win-glow)}
+
+/* ===== PLAYING CARD ===== */
+.card{
+  width:var(--card-w);height:var(--card-h);
+  background:var(--card-white);
+  border-radius:var(--card-radius);
+  box-shadow:1px 2px 8px var(--card-shadow);
+  position:relative;
+  opacity:0;
+  transform:translateY(-40px) rotateY(90deg);
+  animation:cardIn calc(.35s * var(--anim-speed)) ease-out forwards;
+  font-family:Georgia,"Times New Roman",serif;
+  overflow:hidden;
+}
+@keyframes cardIn{
+  0%{opacity:0;transform:translateY(-40px) rotateY(90deg)}
+  50%{opacity:1;transform:translateY(0) rotateY(45deg)}
+  100%{opacity:1;transform:translateY(0) rotateY(0)}
+}
+.card .corner{
+  position:absolute;
+  font-size:clamp(.45rem,1vw,.68rem);line-height:1.05;
+  display:flex;flex-direction:column;align-items:center;
+  font-weight:700;z-index:1;
+}
+.card .corner.top{top:clamp(2px,.3vw,4px);left:clamp(2px,.4vw,5px)}
+.card .corner.bottom{bottom:clamp(2px,.3vw,4px);right:clamp(2px,.4vw,5px);transform:rotate(180deg)}
+.card.red{color:#c0392b}
+.card.black{color:#1a1a1a}
+
+.card .card-center{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  text-align:center;line-height:1;
+}
+.card .card-rank{
+  font-size:clamp(1.1rem,2.5vw,1.8rem);
+  font-weight:800;
+}
+.card .card-suit{
+  font-size:clamp(.7rem,1.4vw,1.1rem);
+  margin-top:1px;
+}
+
+/* ===== RESULT BANNER ===== */
+.result-banner{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(.8);
+  padding:clamp(10px,2vw,18px) clamp(20px,4vw,40px);
+  border-radius:12px;
+  font-family:Georgia,"Times New Roman",serif;
+  font-size:clamp(1rem,2.8vw,1.5rem);
+  letter-spacing:.08em;
+  text-align:center;
+  opacity:0;pointer-events:none;
+  transition:opacity .4s,transform .4s;
+  z-index:10;
+  box-shadow:0 4px 30px rgba(0,0,0,.6);
+  border:2px solid var(--gold);
+  text-shadow:0 1px 4px rgba(0,0,0,.5);
+}
+.result-banner.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.result-banner.player-win{background:linear-gradient(135deg,#1a3a5c,#2a5a8c);color:#fff}
+.result-banner.banker-win{background:linear-gradient(135deg,#5c1a1a,#8c2a2a);color:#fff}
+.result-banner.tie-win{background:linear-gradient(135deg,#1a4c2e,#2a6c3e);color:#fff}
+.result-payout{font-size:clamp(.7rem,1.5vw,.9rem);margin-top:4px;color:var(--gold-light)}
+
+/* ===== BETTING AREA ===== */
+.betting-area{
+  border-top:1px solid #ffffff18;
+  margin-top:clamp(8px,1.5vw,16px);
+  padding-top:clamp(8px,1.5vw,16px);
+}
+.bet-targets{display:flex;justify-content:center;gap:clamp(6px,1.5vw,14px);margin-bottom:12px}
+.bet-target{
+  padding:clamp(8px,1.2vw,14px) clamp(14px,2.5vw,28px);
+  border:2px solid #ffffff30;border-radius:10px;
+  font-size:clamp(.7rem,1.5vw,.9rem);
+  text-transform:uppercase;letter-spacing:.08em;
+  transition:all .2s;
+  background:#00000040;
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+}
+.bet-target:hover:not(:disabled){border-color:#ffffff60;background:#ffffff15}
+.bet-target.selected{
+  border-color:var(--gold);background:#ffffff18;
+  box-shadow:0 0 16px #ffffff15;
+}
+.bet-target .payout{font-size:clamp(.55rem,1.1vw,.7rem);color:var(--text-dim)}
+.bet-target.player-t.selected{border-color:var(--player-blue);box-shadow:0 0 18px var(--player-blue-glow)}
+.bet-target.banker-t.selected{border-color:var(--banker-red);box-shadow:0 0 18px var(--banker-red-glow)}
+.bet-target.tie-t.selected{border-color:var(--tie-green);box-shadow:0 0 18px var(--tie-green-glow)}
+
+/* ===== CHIPS ===== */
+.chips-row{display:flex;justify-content:center;gap:clamp(8px,1.5vw,14px);margin-bottom:10px;flex-wrap:wrap}
+.chip{
+  width:clamp(42px,8vw,56px);height:clamp(42px,8vw,56px);
+  border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:clamp(.6rem,1.3vw,.8rem);
+  color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5);
+  border:3px dashed #ffffff50;
+  box-shadow:0 2px 8px rgba(0,0,0,.4),inset 0 1px 0 #ffffff25;
+  transition:transform .12s;
+  position:relative;
+}
+.chip::after{
+  content:"";position:absolute;inset:4px;border-radius:50%;
+  border:2px solid #ffffff30;pointer-events:none;
+}
+.chip:hover:not(:disabled){transform:scale(1.12)}
+.chip:active:not(:disabled){transform:scale(.95)}
+.chip-5{background:var(--chip-5)}
+.chip-25{background:var(--chip-25);color:#fff}
+.chip-100{background:var(--chip-100)}
+.chip-500{background:var(--chip-500)}
+
+/* ===== BET DISPLAY & ACTIONS ===== */
+.bet-display{
+  text-align:center;font-size:clamp(.75rem,1.5vw,.9rem);
+  margin-bottom:10px;min-height:1.6em;color:var(--text-dim);
+}
+.bet-display strong{color:var(--gold-light)}
+.action-row{display:flex;justify-content:center;gap:clamp(8px,2vw,16px);flex-wrap:wrap}
+.btn{
+  padding:clamp(8px,1.2vw,12px) clamp(18px,3vw,32px);
+  border-radius:8px;font-weight:700;
+  font-size:clamp(.7rem,1.4vw,.85rem);
+  text-transform:uppercase;letter-spacing:.06em;
+  transition:all .15s;
+}
+.btn-deal{
+  background:linear-gradient(to bottom,var(--gold),var(--gold-dim));
+  color:#1a1a1a;
+}
+.btn-deal:hover:not(:disabled){background:linear-gradient(to bottom,var(--gold-light),var(--gold));box-shadow:0 0 16px #d4a84355}
+.btn-clear{background:#ffffff18;color:var(--text-dim);border:1px solid #ffffff20}
+.btn-clear:hover:not(:disabled){background:#ffffff28;color:var(--text-light)}
+.btn-rebet{background:#ffffff10;color:var(--gold);border:1px solid var(--gold-dim)}
+.btn-rebet:hover:not(:disabled){background:#ffffff1a;border-color:var(--gold)}
+.btn-speed{
+  position:fixed;bottom:12px;right:12px;z-index:50;
+  background:#00000080;border:1px solid #ffffff30;border-radius:6px;
+  padding:6px 12px;font-size:.7rem;color:var(--text-dim);
+  backdrop-filter:blur(6px);
+}
+.btn-speed:hover{color:var(--text-light);border-color:#ffffff50}
+
+/* ===== SCOREBOARD ===== */
+.scoreboard{
+  border-top:1px solid #ffffff18;
+  margin-top:clamp(8px,1.5vw,16px);
+  padding-top:clamp(8px,1.5vw,12px);
+}
+/* ===== HISTORY TABLE ===== */
+.history-table-wrap{
+  overflow-x:auto;margin-bottom:8px;
+  scrollbar-width:thin;scrollbar-color:#ffffff18 transparent;
+  -webkit-overflow-scrolling:touch;
+}
+.history-table-wrap::-webkit-scrollbar{height:4px}
+.history-table-wrap::-webkit-scrollbar-thumb{background:#ffffff20;border-radius:3px}
+.history-table{
+  border-collapse:collapse;
+  width:100%;table-layout:fixed;
+}
+.history-row td{
+  text-align:center;
+  padding:clamp(3px,.5vw,6px) clamp(2px,.4vw,4px);
+  font-size:clamp(.7rem,1.3vw,.85rem);
+  font-weight:700;
+  border:1px solid #ffffff0a;
+  min-width:clamp(24px,3.5vw,34px);
+  height:clamp(26px,3.8vw,34px);
+  transition:background .3s;
+}
+.row-label{
+  font-size:clamp(.55rem,1vw,.7rem)!important;
+  font-weight:600!important;
+  letter-spacing:.06em;
+  width:clamp(22px,3vw,30px)!important;
+  min-width:clamp(22px,3vw,30px)!important;
+  background:#ffffff06;
+  border-right:1px solid #ffffff15!important;
+}
+.row-label.player-label{color:var(--player-blue)}
+.row-label.banker-label{color:var(--banker-red)}
+.history-row .score-cell{
+  color:var(--text-dim);
+  background:transparent;
+}
+.history-row .score-cell.winner{
+  font-weight:800;
+}
+.player-row .score-cell.winner{
+  color:var(--player-blue);
+  background:#4a90d912;
+}
+.banker-row .score-cell.winner{
+  color:var(--banker-red);
+  background:#c0392b12;
+}
+.history-row .score-cell.tie-cell{
+  color:var(--tie-green);
+  background:#27ae6012;
+  font-weight:800;
+}
+.history-row .score-cell.latest{
+  box-shadow:inset 0 0 0 1px var(--gold-dim);
+}
+.stats-row{
+  display:flex;justify-content:center;gap:clamp(8px,2vw,20px);flex-wrap:wrap;
+  font-size:clamp(.6rem,1.2vw,.75rem);color:var(--text-dim);
+}
+.stats-row span{white-space:nowrap}
+.stat-val{font-weight:700}
+.stat-player .stat-val{color:var(--player-blue)}
+.stat-banker .stat-val{color:var(--banker-red)}
+.stat-tie .stat-val{color:var(--tie-green)}
+.stat-pnl .stat-val.pos{color:#2ecc71}
+.stat-pnl .stat-val.neg{color:#e74c3c}
+
+/* ===== GAME OVER OVERLAY ===== */
+.overlay{
+  position:fixed;inset:0;background:#000000cc;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:100;opacity:0;pointer-events:none;transition:opacity .4s;
+}
+.overlay.show{opacity:1;pointer-events:all}
+.overlay h2{
+  font-family:Georgia,"Times New Roman",serif;
+  font-size:clamp(1.5rem,4vw,2.5rem);color:var(--gold);
+  letter-spacing:.15em;margin-bottom:12px;
+}
+.overlay p{color:var(--text-dim);margin-bottom:24px;font-size:clamp(.8rem,1.8vw,1rem)}
+.btn-new-game{
+  padding:14px 40px;background:var(--gold);color:#1a1a1a;
+  border-radius:10px;font-weight:800;font-size:1rem;
+  letter-spacing:.05em;
+}
+.btn-new-game:hover{background:var(--gold-light)}
+
+/* ===== RESHUFFLE TOAST ===== */
+.toast{
+  position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);
+  background:#000000dd;border:1px solid var(--gold-dim);
+  padding:10px 28px;border-radius:8px;
+  font-size:.85rem;color:var(--gold-light);
+  z-index:80;transition:transform .4s ease;
+  pointer-events:none;
+}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ===== ARIA LIVE ===== */
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+
+/* ===== RULES PANEL ===== */
+.rules-panel{
+  flex:0 0 clamp(260px,22vw,340px);
+  background:#0f0f0f;
+  border:1px solid #ffffff12;
+  border-radius:14px;
+  padding:clamp(14px,1.5vw,22px);
+  max-height:calc(100vh - 40px);
+  overflow-y:auto;
+  position:sticky;top:20px;
+  scrollbar-width:thin;
+  scrollbar-color:#ffffff20 transparent;
+}
+.rules-panel::-webkit-scrollbar{width:5px}
+.rules-panel::-webkit-scrollbar-thumb{background:#ffffff20;border-radius:4px}
+.rules-panel::-webkit-scrollbar-track{background:transparent}
+.rules-title{
+  font-family:Georgia,"Times New Roman",serif;
+  font-size:clamp(.9rem,1.5vw,1.1rem);
+  color:var(--gold);
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  margin-bottom:14px;
+  padding-bottom:10px;
+  border-bottom:1px solid #ffffff12;
+  display:flex;align-items:center;gap:8px;
+}
+.rules-title .icon{font-size:1.1em}
+.rules-section{margin-bottom:clamp(12px,1.5vw,18px)}
+.rules-section h3{
+  font-size:clamp(.7rem,1.1vw,.8rem);
+  text-transform:uppercase;
+  letter-spacing:.1em;
+  color:var(--gold-light);
+  margin-bottom:6px;
+  font-weight:600;
+}
+.rules-section p, .rules-section li{
+  font-size:clamp(.65rem,1vw,.78rem);
+  color:#b0a890;
+  line-height:1.55;
+}
+.rules-section ul{
+  list-style:none;padding:0;
+}
+.rules-section li{
+  padding:3px 0 3px 14px;
+  position:relative;
+}
+.rules-section li::before{
+  content:"›";
+  position:absolute;left:0;
+  color:var(--gold-dim);font-weight:700;
+}
+.rules-table{
+  width:100%;border-collapse:collapse;
+  font-size:clamp(.58rem,.9vw,.7rem);
+  margin-top:6px;
+}
+.rules-table th,.rules-table td{
+  padding:3px 5px;
+  text-align:center;
+  border:1px solid #ffffff10;
+}
+.rules-table th{
+  background:#ffffff08;
+  color:var(--gold-light);
+  font-weight:600;
+  font-size:clamp(.55rem,.85vw,.65rem);
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+.rules-table td{color:#b0a890}
+.rules-table .draw{color:#5dade2}
+.rules-table .stand{color:#e67e73}
+.rules-divider{
+  border:none;border-top:1px solid #ffffff0a;
+  margin:clamp(10px,1.2vw,16px) 0;
+}
+.rules-kbd{
+  display:inline-block;
+  background:#ffffff12;border:1px solid #ffffff20;
+  border-radius:3px;padding:1px 5px;
+  font-family:monospace;font-size:.7rem;
+  color:var(--text-dim);
+}
+.payout-row{
+  display:flex;justify-content:space-between;
+  padding:3px 0;
+  font-size:clamp(.62rem,.95vw,.74rem);
+  color:#b0a890;
+}
+.payout-row .bet-label{font-weight:600}
+.payout-row .player-c{color:var(--player-blue)}
+.payout-row .banker-c{color:var(--banker-red)}
+.payout-row .tie-c{color:var(--tie-green)}
+
+/* Mobile rules toggle */
+.rules-toggle{
+  display:none;
+  position:fixed;bottom:12px;left:12px;z-index:50;
+  background:#000000cc;border:1px solid var(--gold-dim);border-radius:8px;
+  padding:8px 16px;font-size:.75rem;color:var(--gold);
+  backdrop-filter:blur(6px);
+  letter-spacing:.03em;
+}
+.rules-toggle:hover{background:#000000ee;border-color:var(--gold)}
+.rules-close{display:none}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:480px){
+  .bet-targets{flex-direction:row;gap:4px}
+  .bet-target{padding:8px 10px}
+  .action-row{gap:6px}
+  .btn{padding:8px 14px}
+}
+@media(max-width:920px){
+  .page-layout{flex-direction:column;align-items:center}
+  .rules-panel{
+    position:fixed;
+    top:0;left:0;right:0;bottom:0;
+    max-height:100vh;
+    border-radius:0;
+    z-index:90;
+    flex:none;width:100%;
+    transform:translateY(100%);
+    transition:transform .35s ease;
+    padding-top:50px;
+  }
+  .rules-panel.open{transform:translateY(0)}
+  .rules-close{
+    display:block;
+    position:absolute;top:10px;right:14px;
+    background:none;border:1px solid #ffffff25;
+    border-radius:6px;padding:6px 14px;
+    color:var(--text-dim);font-size:.8rem;
+    cursor:pointer;
+  }
+  .rules-close:hover{color:var(--text-light);border-color:#ffffff40}
+  .rules-toggle{display:block}
+}
+</style>
+</head>
+<body>
+
+<div class="page-layout">
+<div class="game-col">
+<div class="table-wrap" role="main">
+  <!-- HEADER -->
+  <div class="header">
+    <h1>BACCARAT</h1>
+    <div class="header-info">
+      <span>Balance: <span class="bankroll-val" id="bankrollDisplay">$1,000</span></span>
+      <span id="shoeDisplay">Shoe: 416</span>
+    </div>
+  </div>
+
+  <!-- CARD TABLE -->
+  <div class="card-table">
+    <div class="hand-zone">
+      <div class="hand-label player-label">Player</div>
+      <div class="cards-row" id="playerCards"></div>
+      <div class="hand-total" id="playerTotal"></div>
+    </div>
+    <div class="hand-zone">
+      <div class="hand-label banker-label">Banker</div>
+      <div class="cards-row" id="bankerCards"></div>
+      <div class="hand-total" id="bankerTotal"></div>
+    </div>
+    <!-- Result Banner -->
+    <div class="result-banner" id="resultBanner">
+      <div id="resultText"></div>
+      <div class="result-payout" id="resultPayout"></div>
+    </div>
+  </div>
+
+  <!-- BETTING AREA -->
+  <div class="betting-area">
+    <div class="bet-targets">
+      <button class="bet-target player-t" data-target="player" id="btnPlayer">PLAYER<span class="payout">Pays 1:1</span></button>
+      <button class="bet-target tie-t" data-target="tie" id="btnTie">TIE<span class="payout">Pays 8:1</span></button>
+      <button class="bet-target banker-t" data-target="banker" id="btnBanker">BANKER<span class="payout">Pays 0.95:1</span></button>
+    </div>
+    <div class="chips-row">
+      <button class="chip chip-5" data-chip="5" aria-label="Bet $5">$5</button>
+      <button class="chip chip-25" data-chip="25" aria-label="Bet $25">$25</button>
+      <button class="chip chip-100" data-chip="100" aria-label="Bet $100">$100</button>
+      <button class="chip chip-500" data-chip="500" aria-label="Bet $500">$500</button>
+    </div>
+    <div class="bet-display" id="betDisplay">Place your bet</div>
+    <div class="action-row">
+      <button class="btn btn-clear" id="btnClear" disabled>Clear</button>
+      <button class="btn btn-rebet" id="btnRebet" style="display:none">Rebet &amp; Deal</button>
+      <button class="btn btn-deal" id="btnDeal" disabled>Deal</button>
+    </div>
+  </div>
+
+  <!-- SCOREBOARD -->
+  <div class="scoreboard">
+    <div class="history-table-wrap">
+      <table class="history-table" id="historyTable">
+        <tbody>
+          <tr class="history-row player-row">
+            <td class="row-label player-label">P</td>
+          </tr>
+          <tr class="history-row banker-row">
+            <td class="row-label banker-label">B</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="stats-row">
+      <span class="stat-player">Player <span class="stat-val" id="statP">0</span></span>
+      <span class="stat-banker">Banker <span class="stat-val" id="statB">0</span></span>
+      <span class="stat-tie">Tie <span class="stat-val" id="statT">0</span></span>
+      <span>Rounds <span class="stat-val" id="statR">0</span></span>
+      <span class="stat-pnl">P&L <span class="stat-val" id="statPnl">$0</span></span>
+    </div>
+  </div>
+</div>
+</div><!-- /game-col -->
+
+<!-- RULES PANEL -->
+<aside class="rules-panel" id="rulesPanel">
+  <button class="rules-close" id="rulesClose" aria-label="Close rules">✕ Close</button>
+  <div class="rules-title"><span class="icon">📖</span> How to Play</div>
+
+  <div class="rules-section">
+    <h3>The Objective</h3>
+    <p>Baccarat is a card game between two hands — the <strong style="color:var(--player-blue)">Player</strong> and the <strong style="color:var(--banker-red)">Banker</strong>. You bet on which hand will have a total closest to <strong style="color:var(--gold-light)">9</strong>, or whether they'll tie.</p>
+  </div>
+
+  <div class="rules-section">
+    <h3>How to Bet</h3>
+    <ul>
+      <li>Pick a side: <strong style="color:var(--player-blue)">Player</strong>, <strong style="color:var(--banker-red)">Banker</strong>, or <strong style="color:var(--tie-green)">Tie</strong></li>
+      <li>Click chips to set your wager (clicks stack)</li>
+      <li>Press <strong>Deal</strong> to play the round</li>
+    </ul>
+  </div>
+
+  <hr class="rules-divider">
+
+  <div class="rules-section">
+    <h3>Card Values</h3>
+    <ul>
+      <li><strong>Ace</strong> = 1 point</li>
+      <li><strong>2–9</strong> = face value</li>
+      <li><strong>10, J, Q, K</strong> = 0 points</li>
+    </ul>
+    <p style="margin-top:5px">Hand total = sum of cards, <strong>keep only the last digit</strong>. For example: 7 + 8 = 15 → total is <strong>5</strong>.</p>
+  </div>
+
+  <hr class="rules-divider">
+
+  <div class="rules-section">
+    <h3>Naturals</h3>
+    <p>If either hand totals <strong style="color:var(--win-glow)">8 or 9</strong> after the first two cards, it's called a "natural" and the round ends immediately — no more cards are drawn.</p>
+  </div>
+
+  <div class="rules-section">
+    <h3>Third-Card Rules</h3>
+    <p>If no natural occurs, the game may deal a third card following fixed rules (you don't choose — it's automatic):</p>
+    <ul>
+      <li><strong style="color:var(--player-blue)">Player</strong> draws on 0–5, stands on 6–7</li>
+      <li><strong style="color:var(--banker-red)">Banker</strong> follows a more complex tableau based on the Player's third card (see below)</li>
+    </ul>
+  </div>
+
+  <div class="rules-section">
+    <h3>Banker Tableau</h3>
+    <p style="margin-bottom:5px;font-size:.65rem;color:#887a66">When Player drew a 3rd card, Banker acts based on that card's value:</p>
+    <table class="rules-table">
+      <thead>
+        <tr><th>Bank</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>0–2</strong></td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td></tr>
+        <tr><td><strong>3</strong></td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td><td class="stand">S</td><td class="draw">D</td></tr>
+        <tr><td><strong>4</strong></td><td class="stand">S</td><td class="stand">S</td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td><td class="stand">S</td><td class="stand">S</td></tr>
+        <tr><td><strong>5</strong></td><td class="stand">S</td><td class="stand">S</td><td class="stand">S</td><td class="stand">S</td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td><td class="draw">D</td><td class="stand">S</td><td class="stand">S</td></tr>
+        <tr><td><strong>6</strong></td><td class="stand">S</td><td class="stand">S</td><td class="stand">S</td><td class="stand">S</td><td class="stand">S</td><td class="stand">S</td><td class="draw">D</td><td class="draw">D</td><td class="stand">S</td><td class="stand">S</td></tr>
+        <tr><td><strong>7</strong></td><td class="stand">S</td><td class="stand">S</td><td class="stand">S</td><td class="stand">S</td><td class="stand">S</td><td class="stand">S</td><td class="stand">S</td><td class="stand">S</td><td class="stand">S</td><td class="stand">S</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:4px;font-size:.6rem;color:#776a58"><span class="draw">D</span> = Draw &nbsp; <span class="stand">S</span> = Stand &nbsp;|&nbsp; If Player stood, Banker draws on 0–5.</p>
+  </div>
+
+  <hr class="rules-divider">
+
+  <div class="rules-section">
+    <h3>Payouts</h3>
+    <div class="payout-row"><span class="bet-label player-c">Player wins</span><span>1 : 1</span></div>
+    <div class="payout-row"><span class="bet-label banker-c">Banker wins</span><span>0.95 : 1 <span style="font-size:.6rem;color:#887a66">(5% commission)</span></span></div>
+    <div class="payout-row"><span class="bet-label tie-c">Tie</span><span>8 : 1</span></div>
+    <p style="margin-top:6px">On a tie, Player and Banker bets <strong>push</strong> (returned, no win or loss). Tie bets lose on non-tie outcomes.</p>
+  </div>
+
+  <hr class="rules-divider">
+
+  <div class="rules-section">
+    <h3>House Edge</h3>
+    <div class="payout-row"><span>Banker bet</span><span>1.06%</span></div>
+    <div class="payout-row"><span>Player bet</span><span>1.24%</span></div>
+    <div class="payout-row"><span>Tie bet</span><span>14.4%</span></div>
+    <p style="margin-top:4px;font-size:.62rem;color:#776a58">Banker has the best odds. Tie pays well but has a very high house edge.</p>
+  </div>
+
+  <hr class="rules-divider">
+
+  <div class="rules-section">
+    <h3>Keyboard Shortcuts</h3>
+    <ul>
+      <li><span class="rules-kbd">1</span> Player &nbsp; <span class="rules-kbd">2</span> Tie &nbsp; <span class="rules-kbd">3</span> Banker</li>
+      <li><span class="rules-kbd">D</span> Deal &nbsp; <span class="rules-kbd">C</span> Clear &nbsp; <span class="rules-kbd">R</span> Rebet</li>
+    </ul>
+  </div>
+</aside>
+
+</div><!-- /page-layout -->
+
+<!-- OVERLAYS -->
+<div class="overlay" id="gameOverOverlay">
+  <h2>BANKRUPT</h2>
+  <p>Your balance has reached $0.</p>
+  <button class="btn-new-game" id="btnNewGame">New Game — $1,000</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<button class="btn-speed" id="btnSpeed" title="Toggle fast mode">⚡ Normal</button>
+<button class="rules-toggle" id="rulesToggle">📖 Rules</button>
+
+<!-- ARIA LIVE -->
+<div class="sr-only" aria-live="polite" id="ariaLive"></div>
+
+<script>
+/* ======================================================================
+   BACCARAT — PUNTO BANCO  (Single-file, zero dependencies)
+   ====================================================================== */
+
+// ─── CONSTANTS ───
+const SUITS = ['hearts','diamonds','clubs','spades'];
+const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const SUIT_SYM = {hearts:'♥',diamonds:'♦',clubs:'♣',spades:'♠'};
+const RANK_VAL = {A:1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'10':0,J:0,Q:0,K:0};
+const NUM_DECKS = 8;
+const CUT_CARD = 104; // reshuffle when ≤ this many cards left
+const START_BANKROLL = 1000;
+const MIN_BET = 5;
+
+// Banker third-card tableau: bankerTotal → set of player 3rd card values that cause banker to STAND
+// If player's 3rd card value is in this set, banker stands; otherwise draws.
+const BANKER_STAND_ON = {
+  0: new Set(),          // always draw
+  1: new Set(),          // always draw
+  2: new Set(),          // always draw
+  3: new Set([8]),       // stand only if player 3rd = 8
+  4: new Set([0,1,8,9]), // stand if player 3rd = 0,1,8,9
+  5: new Set([0,1,2,3,8,9]),
+  6: new Set([0,1,2,3,4,5,8,9]),
+  7: new Set([0,1,2,3,4,5,6,7,8,9]) // always stand
+};
+
+// ─── AUDIO (Web Audio API — tiny synth) ───
+let audioCtx = null;
+function initAudio(){
+  if(!audioCtx) try{audioCtx = new (window.AudioContext||window.webkitAudioContext)()}catch(e){}
+}
+function playTone(freq, dur, type='sine', vol=0.08){
+  if(!audioCtx) return;
+  try{
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type;
+    o.frequency.value = freq;
+    g.gain.value = vol;
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + dur);
+  }catch(e){}
+}
+function sndCard(){playTone(800,.06,'triangle',.1)}
+function sndChip(){playTone(1200,.04,'sine',.06)}
+function sndWin(){playTone(523,.1,'sine',.1);setTimeout(()=>playTone(659,.1,'sine',.1),100);setTimeout(()=>playTone(784,.15,'sine',.1),200)}
+function sndLose(){playTone(250,.2,'sawtooth',.06)}
+function sndPush(){playTone(440,.12,'triangle',.06)}
+
+// ─── STATE ───
+let state = {
+  bankroll: START_BANKROLL,
+  bet: {target:null, amount:0},
+  prevBet: null,
+  shoe: [],
+  playerHand: [],
+  bankerHand: [],
+  phase: 'betting', // betting | dealing | result
+  history: [],
+  stats: {p:0, b:0, t:0, rounds:0, pnl:0},
+  fastMode: false,
+};
+
+// ─── DOM REFS ───
+const $ = id => document.getElementById(id);
+const bankrollEl = $('bankrollDisplay');
+const shoeEl = $('shoeDisplay');
+const playerCardsEl = $('playerCards');
+const bankerCardsEl = $('bankerCards');
+const playerTotalEl = $('playerTotal');
+const bankerTotalEl = $('bankerTotal');
+const resultBanner = $('resultBanner');
+const resultText = $('resultText');
+const resultPayout = $('resultPayout');
+const betDisplay = $('betDisplay');
+const btnDeal = $('btnDeal');
+const btnClear = $('btnClear');
+const btnRebet = $('btnRebet');
+const btnPlayer = $('btnPlayer');
+const btnTie = $('btnTie');
+const btnBanker = $('btnBanker');
+// beadRoad removed — now using history table
+const overlay = $('gameOverOverlay');
+const toastEl = $('toast');
+const ariaLive = $('ariaLive');
+const btnSpeed = $('btnSpeed');
+
+// ─── SHOE ───
+function createShoe(){
+  const shoe = [];
+  for(let d=0;d<NUM_DECKS;d++)
+    for(const s of SUITS)
+      for(const r of RANKS)
+        shoe.push({suit:s, rank:r, value:RANK_VAL[r]});
+  // Fisher-Yates shuffle
+  for(let i=shoe.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [shoe[i],shoe[j]]=[shoe[j],shoe[i]];
+  }
+  return shoe;
+}
+function drawCard(){
+  if(state.shoe.length===0) state.shoe = createShoe();
+  return state.shoe.pop();
+}
+
+// ─── HAND HELPERS ───
+function handTotal(cards){
+  return cards.reduce((s,c)=>s+c.value,0) % 10;
+}
+
+// ─── RENDER HELPERS ───
+function formatMoney(n){
+  const sign = n<0 ? '-' : n>0 ? '+' : '';
+  return (n<0?'-':'') + '$' + Math.abs(n).toLocaleString();
+}
+function formatBankroll(n){
+  return '$' + n.toLocaleString();
+}
+
+function renderCard(card, delayMs){
+  const isRed = card.suit==='hearts'||card.suit==='diamonds';
+  const sym = SUIT_SYM[card.suit];
+  const el = document.createElement('div');
+  el.className = 'card ' + (isRed?'red':'black');
+  el.style.animationDelay = delayMs + 'ms';
+  el.setAttribute('aria-label', card.rank + ' of ' + card.suit);
+  el.innerHTML =
+    `<div class="corner top">${card.rank}<br>${sym}</div>`+
+    `<div class="card-center"><div class="card-rank">${card.rank}</div><div class="card-suit">${sym}</div></div>`+
+    `<div class="corner bottom">${card.rank}<br>${sym}</div>`;
+  return el;
+}
+
+function updateBankroll(){
+  bankrollEl.textContent = formatBankroll(state.bankroll);
+}
+function updateShoe(){
+  shoeEl.textContent = 'Shoe: ' + state.shoe.length;
+}
+function updateBetDisplay(){
+  if(!state.bet.target || state.bet.amount===0){
+    betDisplay.innerHTML = 'Place your bet';
+  } else {
+    const label = state.bet.target.charAt(0).toUpperCase()+state.bet.target.slice(1);
+    betDisplay.innerHTML = `Bet: <strong>${formatBankroll(state.bet.amount)}</strong> on <strong>${label}</strong>`;
+  }
+}
+function updateStats(){
+  $('statP').textContent = state.stats.p;
+  $('statB').textContent = state.stats.b;
+  $('statT').textContent = state.stats.t;
+  $('statR').textContent = state.stats.rounds;
+  const pnlEl = $('statPnl');
+  pnlEl.textContent = formatMoney(state.stats.pnl);
+  pnlEl.className = 'stat-val' + (state.stats.pnl>0?' pos':state.stats.pnl<0?' neg':'');
+}
+function renderHistory(){
+  const table = $('historyTable');
+  const pRow = table.rows[0];
+  const bRow = table.rows[1];
+  // Keep only the label cells
+  while(pRow.cells.length > 1) pRow.deleteCell(1);
+  while(bRow.cells.length > 1) bRow.deleteCell(1);
+
+  const recent = state.history.slice(-20);
+  const total = Math.max(recent.length, 20); // always show 20 columns
+
+  for(let i=0; i<total; i++){
+    const pCell = pRow.insertCell();
+    const bCell = bRow.insertCell();
+    pCell.className = 'score-cell';
+    bCell.className = 'score-cell';
+
+    if(i < recent.length){
+      const h = recent[i];
+      pCell.textContent = h.p;
+      bCell.textContent = h.b;
+
+      if(h.outcome === 'T'){
+        pCell.classList.add('tie-cell');
+        bCell.classList.add('tie-cell');
+      } else if(h.outcome === 'P'){
+        pCell.classList.add('winner');
+      } else {
+        bCell.classList.add('winner');
+      }
+      // Mark the latest round
+      if(i === recent.length - 1){
+        pCell.classList.add('latest');
+        bCell.classList.add('latest');
+      }
+    }
+  }
+
+  // Auto-scroll to the right to show latest
+  const wrap = table.closest('.history-table-wrap');
+  if(wrap) wrap.scrollLeft = wrap.scrollWidth;
+}
+
+function clearTable(){
+  playerCardsEl.innerHTML='';
+  bankerCardsEl.innerHTML='';
+  playerTotalEl.textContent='';
+  bankerTotalEl.textContent='';
+  playerTotalEl.classList.remove('natural');
+  bankerTotalEl.classList.remove('natural');
+  resultBanner.classList.remove('show','player-win','banker-win','tie-win');
+}
+
+function setPhase(p){
+  state.phase = p;
+  const betting = p==='betting';
+  // Enable/disable bet controls
+  document.querySelectorAll('.bet-target, .chip').forEach(b=>b.disabled=!betting);
+  btnClear.disabled = !betting || state.bet.amount===0;
+  btnDeal.disabled = !betting || state.bet.amount < MIN_BET || !state.bet.target;
+  if(state.prevBet && betting){
+    btnRebet.style.display='';
+    btnRebet.disabled = state.prevBet.amount > state.bankroll;
+  } else {
+    btnRebet.style.display = betting && state.prevBet ? '' : 'none';
+    if(!betting) btnRebet.disabled = true;
+  }
+}
+
+// ─── TIMING HELPER ───
+function delay(ms){
+  return new Promise(r => setTimeout(r, ms * (state.fastMode ? 2 : 4)));
+}
+
+// ─── TOAST ───
+function showToast(msg, dur=2000){
+  toastEl.textContent=msg;
+  toastEl.classList.add('show');
+  setTimeout(()=>toastEl.classList.remove('show'), dur);
+}
+
+// ─── GAME LOGIC ───
+async function dealRound(){
+  initAudio();
+  clearTable();
+  setPhase('dealing');
+
+  state.playerHand = [];
+  state.bankerHand = [];
+
+  const t = 350;
+
+  // Deal 4 cards alternating
+  const p1 = drawCard(); state.playerHand.push(p1);
+  playerCardsEl.appendChild(renderCard(p1, 0)); sndCard();
+  await delay(t);
+
+  const b1 = drawCard(); state.bankerHand.push(b1);
+  bankerCardsEl.appendChild(renderCard(b1, 0)); sndCard();
+  await delay(t);
+
+  const p2 = drawCard(); state.playerHand.push(p2);
+  playerCardsEl.appendChild(renderCard(p2, 0)); sndCard();
+  await delay(t);
+
+  const b2 = drawCard(); state.bankerHand.push(b2);
+  bankerCardsEl.appendChild(renderCard(b2, 0)); sndCard();
+  await delay(t);
+
+  let pTotal = handTotal(state.playerHand);
+  let bTotal = handTotal(state.bankerHand);
+  playerTotalEl.textContent = pTotal;
+  bankerTotalEl.textContent = bTotal;
+
+  updateShoe();
+
+  // Check naturals
+  const natural = pTotal>=8 || bTotal>=8;
+  if(natural){
+    if(pTotal>=8) playerTotalEl.classList.add('natural');
+    if(bTotal>=8) bankerTotalEl.classList.add('natural');
+    await delay(500);
+    resolveRound(natural);
+    return;
+  }
+
+  // Player third card rule
+  let playerDrew = false;
+  let playerThirdValue = null;
+  if(pTotal <= 5){
+    await delay(400);
+    const p3 = drawCard(); state.playerHand.push(p3);
+    playerCardsEl.appendChild(renderCard(p3, 0)); sndCard();
+    playerDrew = true;
+    playerThirdValue = p3.value;
+    pTotal = handTotal(state.playerHand);
+    playerTotalEl.textContent = pTotal;
+    await delay(t);
+  }
+
+  // Banker third card rule
+  bTotal = handTotal(state.bankerHand);
+  let bankerDraws = false;
+  if(!playerDrew){
+    // Player stood — banker draws on 0-5, stands 6-7
+    bankerDraws = bTotal <= 5;
+  } else {
+    // Use tableau
+    if(bTotal <= 2){
+      bankerDraws = true;
+    } else if(bTotal >= 7){
+      bankerDraws = false;
+    } else {
+      // bTotal 3-6: check if player's 3rd card is NOT in the stand set
+      bankerDraws = !BANKER_STAND_ON[bTotal].has(playerThirdValue);
+    }
+  }
+
+  if(bankerDraws){
+    await delay(400);
+    const b3 = drawCard(); state.bankerHand.push(b3);
+    bankerCardsEl.appendChild(renderCard(b3, 0)); sndCard();
+    bTotal = handTotal(state.bankerHand);
+    bankerTotalEl.textContent = bTotal;
+    await delay(t);
+  }
+
+  updateShoe();
+  await delay(300);
+  resolveRound(false);
+}
+
+function resolveRound(natural){
+  const pTotal = handTotal(state.playerHand);
+  const bTotal = handTotal(state.bankerHand);
+
+  let outcome; // 'P','B','T'
+  if(pTotal > bTotal) outcome = 'P';
+  else if(bTotal > pTotal) outcome = 'B';
+  else outcome = 'T';
+
+  // Calculate payout
+  // NOTE: the bet amount was ALREADY deducted from bankroll when Deal was clicked.
+  // So `net` here is the amount to ADD BACK:
+  //   Win  → return stake + winnings
+  //   Push → return stake (net = bet.amount, so bankroll restored)
+  //   Lose → return nothing (net = 0, stake already gone)
+  let net = 0;
+  let payoutText = '';
+  const bet = state.bet;
+
+  if(outcome === 'T'){
+    if(bet.target === 'tie'){
+      // Win: return stake + 8× winnings
+      net = bet.amount + bet.amount * 8;
+      payoutText = '+' + formatBankroll(bet.amount * 8) + ' (8:1)';
+    } else {
+      // Push: return stake
+      net = bet.amount;
+      payoutText = 'Push — bet returned';
+    }
+  } else if(outcome === 'P'){
+    if(bet.target === 'player'){
+      // Win: return stake + 1:1 winnings
+      net = bet.amount * 2;
+      payoutText = '+' + formatBankroll(bet.amount);
+    } else {
+      // Lose: stake already gone
+      net = 0;
+      payoutText = '-' + formatBankroll(bet.amount);
+    }
+  } else { // B
+    if(bet.target === 'banker'){
+      // Win: return stake + winnings minus 5% commission
+      const commission = Math.ceil(bet.amount * 0.05);
+      const winnings = bet.amount - commission;
+      net = bet.amount + winnings;
+      payoutText = '+' + formatBankroll(winnings) + ' (-' + formatBankroll(commission) + ' comm.)';
+    } else {
+      // Lose: stake already gone
+      net = 0;
+      payoutText = '-' + formatBankroll(bet.amount);
+    }
+  }
+
+  state.bankroll += net;
+  // Track P&L as profit only (net minus the returned stake)
+  const profit = net - bet.amount;
+  state.stats.pnl += profit;
+
+  // Update stats
+  if(outcome==='P') state.stats.p++;
+  else if(outcome==='B') state.stats.b++;
+  else state.stats.t++;
+  state.stats.rounds++;
+  state.history.push({outcome, p:pTotal, b:bTotal});
+
+  // Show result
+  const natLabel = natural ? 'NATURAL ' + Math.max(pTotal,bTotal) + ' — ' : '';
+  let resultClass, resultLabel;
+  if(outcome==='P'){
+    resultClass='player-win';
+    resultLabel=natLabel+'PLAYER WINS';
+  } else if(outcome==='B'){
+    resultClass='banker-win';
+    resultLabel=natLabel+'BANKER WINS';
+  } else {
+    resultClass='tie-win';
+    resultLabel=natLabel+'TIE';
+  }
+
+  resultBanner.className = 'result-banner ' + resultClass;
+  resultText.textContent = resultLabel;
+  resultPayout.textContent = payoutText;
+  setTimeout(()=>resultBanner.classList.add('show'), 50);
+
+  // Sound
+  if(profit>0) sndWin();
+  else if(profit<0) sndLose();
+  else sndPush();
+
+  // Aria
+  ariaLive.textContent = resultLabel + '. ' + payoutText;
+
+  // Save previous bet
+  state.prevBet = {target:bet.target, amount:bet.amount};
+
+  // Update UI
+  updateBankroll();
+  updateStats();
+  renderHistory();
+
+  // Reset bet
+  state.bet = {target:null, amount:0};
+  document.querySelectorAll('.bet-target').forEach(b=>b.classList.remove('selected'));
+  updateBetDisplay();
+
+  // Check shoe reshuffle
+  if(state.shoe.length <= CUT_CARD){
+    setTimeout(()=>{
+      state.shoe = createShoe();
+      updateShoe();
+      showToast('♠ Shoe reshuffled ♠');
+    }, 2000);
+  }
+
+  // Check bankrupt
+  if(state.bankroll <= 0){
+    setTimeout(()=>{
+      overlay.classList.add('show');
+    }, 1500);
+  }
+
+  // Back to betting after a short pause to read the result
+  setTimeout(()=>{
+    setPhase('betting');
+  }, 1500);
+}
+
+// ─── EVENT HANDLERS ───
+
+// Bet target selection
+document.querySelectorAll('.bet-target').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    if(state.phase!=='betting') return;
+    const target = btn.dataset.target;
+    // If switching target, reset amount
+    if(state.bet.target !== target){
+      state.bet.amount = 0;
+    }
+    state.bet.target = target;
+    document.querySelectorAll('.bet-target').forEach(b=>b.classList.remove('selected'));
+    btn.classList.add('selected');
+    sndChip();
+    updateBetDisplay();
+    setPhase('betting');
+    // Dismiss result banner if showing
+    resultBanner.classList.remove('show');
+  });
+});
+
+// Chip clicks
+document.querySelectorAll('.chip').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    if(state.phase!=='betting') return;
+    const val = parseInt(btn.dataset.chip);
+    if(!state.bet.target){
+      showToast('Select Player, Tie, or Banker first');
+      return;
+    }
+    if(state.bet.amount + val > state.bankroll){
+      // Try to add what we can
+      const canAdd = state.bankroll - state.bet.amount;
+      if(canAdd >= MIN_BET){
+        state.bet.amount = state.bankroll;
+      } else {
+        showToast('Insufficient balance');
+        return;
+      }
+    } else {
+      state.bet.amount += val;
+    }
+    sndChip();
+    updateBetDisplay();
+    setPhase('betting');
+    resultBanner.classList.remove('show');
+  });
+});
+
+// Clear bet
+btnClear.addEventListener('click', ()=>{
+  state.bet = {target:null, amount:0};
+  document.querySelectorAll('.bet-target').forEach(b=>b.classList.remove('selected'));
+  updateBetDisplay();
+  setPhase('betting');
+});
+
+// Deal
+btnDeal.addEventListener('click', ()=>{
+  if(state.phase!=='betting' || state.bet.amount < MIN_BET || !state.bet.target) return;
+  initAudio();
+  state.bankroll -= state.bet.amount;
+  updateBankroll();
+  dealRound();
+});
+
+// Rebet & Deal
+btnRebet.addEventListener('click', ()=>{
+  if(state.phase!=='betting' || !state.prevBet) return;
+  const rb = state.prevBet;
+  const amt = Math.min(rb.amount, state.bankroll);
+  if(amt < MIN_BET){
+    showToast('Insufficient balance to rebet');
+    return;
+  }
+  state.bet = {target:rb.target, amount:amt};
+  // Highlight target
+  document.querySelectorAll('.bet-target').forEach(b=>{
+    b.classList.toggle('selected', b.dataset.target===rb.target);
+  });
+  updateBetDisplay();
+  initAudio();
+  state.bankroll -= amt;
+  updateBankroll();
+  dealRound();
+});
+
+// New game
+$('btnNewGame').addEventListener('click', ()=>{
+  state.bankroll = START_BANKROLL;
+  state.bet = {target:null, amount:0};
+  state.prevBet = null;
+  state.history = [];
+  state.stats = {p:0,b:0,t:0,rounds:0,pnl:0};
+  state.shoe = createShoe();
+  overlay.classList.remove('show');
+  clearTable();
+  updateBankroll();
+  updateShoe();
+  updateBetDisplay();
+  updateStats();
+  renderHistory();
+  document.querySelectorAll('.bet-target').forEach(b=>b.classList.remove('selected'));
+  setPhase('betting');
+});
+
+// Speed toggle
+btnSpeed.addEventListener('click', ()=>{
+  state.fastMode = !state.fastMode;
+  btnSpeed.textContent = state.fastMode ? '⚡ Fast' : '⚡ Normal';
+  document.documentElement.style.setProperty('--anim-speed', state.fastMode?'2':'4');
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e=>{
+  if(state.phase!=='betting') return;
+  const key = e.key.toLowerCase();
+  if(key==='1') btnPlayer.click();
+  else if(key==='2') btnTie.click();
+  else if(key==='3') btnBanker.click();
+  else if(key==='d') btnDeal.click();
+  else if(key==='c') btnClear.click();
+  else if(key==='r') btnRebet.click();
+});
+
+// ─── RULES PANEL TOGGLE (mobile) ───
+const rulesPanel = $('rulesPanel');
+const rulesToggle = $('rulesToggle');
+const rulesClose = $('rulesClose');
+rulesToggle.addEventListener('click', ()=>rulesPanel.classList.add('open'));
+rulesClose.addEventListener('click', ()=>rulesPanel.classList.remove('open'));
+
+// ─── INIT ───
+state.shoe = createShoe();
+updateBankroll();
+updateShoe();
+updateStats();
+renderHistory();
+setPhase('betting');
+</script>
+</body>
+</html>
