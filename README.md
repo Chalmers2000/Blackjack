@@ -1,7 +1,10 @@
 # Blackjack
 
-Simple Blackjack game using HTML, CSS, and JavaScript. Built to closely match the
-look, feel, and animation timing of the `baccarat-reference/` example.
+Simple Blackjack game using HTML, CSS, and JavaScript. Includes an Odds calculator before you hit or stand.
+Built to closely match the look, feel, and animation timing of the `baccarat-reference/` example.
+
+
+![Blackjack Screenshot](baccarat-reference/blackjack-screenshot.png)
 
 ## Files
 
