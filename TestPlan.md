@@ -1,354 +1,165 @@
-# 🧪 Understanding the `.test` Folder
+# Test Plan
 
-> **For new developers:** This guide explains what the test scripts do, why they exist, and how they work — step by step with diagrams!
+This document covers the browser automation checks in `.test/`. The tests exercise the main Blackjack flows through the actual UI, capture screenshots for review, and inspect runtime state through the public `BJ.getState()` hook.
 
----
+## Scope
 
-## 📁 What's In This Folder?
+The current test pass focuses on high-value gameplay paths:
+
+- Page load and initial betting state
+- Chip betting and Deal flow
+- Hit and Stand during a normal hand
+- Dealer resolution and return to betting
+- Odds badge updates after cards are dealt
+- History table and stats row updates
+- Split eligibility, split execution, and split-hand resolution
+- Double Down eligibility, single-card draw, doubled bet, and resolution
+- Basic console-error check
+
+These are end-to-end smoke tests, not a full rules-engine test suite. They verify that the major UI flows work together in the browser.
+
+## Test Files
 
 ```
 .test/
-├── cdp-test.ps1      ← Test script #1: Basic gameplay (Bet → Deal → Hit → Stand)
-├── cdp-test2.ps1     ← Test script #2: Advanced gameplay (Split & Double Down)
-└── shots/            ← Screenshots taken during tests (visual proof it works!)
-    ├── 01-initial.png
-    ├── 02-dealt.png
-    ├── 03-after-hit.png
-    ├── ...and more
+├── cdp-test.ps1      # Basic round: bet, deal, hit, stand, resolve
+├── cdp-test2.ps1     # Deterministic split and double-down scenarios
+└── shots/            # Screenshots produced by the scripts
 ```
 
----
+## Harness
 
-## 🤔 What Is a "Test" and Why Do We Need One?
-
-A **test** is code that plays your game automatically to make sure it works correctly. Instead of you manually clicking buttons every time you change something, the test does it for you!
-
-Think of it like a robot that:
-1. Opens your game in a browser
-2. Clicks buttons (bet, deal, hit, stand)
-3. Checks that the game responds correctly
-4. Takes screenshots as proof
-
----
-
-## 🔧 What Is "CDP"?
-
-CDP stands for **Chrome DevTools Protocol**. It's a way for code to **remote-control** a web browser. The test scripts use it to control Microsoft Edge like a puppet!
-
-```mermaid
-graph LR
-    A[PowerShell Script] -->|sends commands via CDP| B[Edge Browser]
-    B -->|runs your Blackjack game| C[index.html]
-    B -->|sends back results| A
-    A -->|saves| D[Screenshots in /shots]
-```
-
----
-
-## 🏗️ How the Test Infrastructure Works
-
-```mermaid
-flowchart TD
-    subgraph SETUP["⚙️ Setup Phase"]
-        A[Launch Edge in Headless Mode] --> B[Connect via WebSocket]
-        B --> C[Find the Blackjack page target]
-    end
-
-    subgraph PLAY["🎮 Test Phase"]
-        C --> D[Send JavaScript commands]
-        D --> E[Click buttons / Read game state]
-        E --> F[Take screenshots]
-        F --> G{More actions?}
-        G -->|Yes| D
-        G -->|No| H[Close connection]
-    end
-
-    subgraph CLEANUP["🧹 Cleanup Phase"]
-        H --> I[Close Edge]
-        I --> J[Delete temp profile folder]
-    end
-```
-
----
-
-## 📝 Test Script #1: `cdp-test.ps1` — Basic Gameplay
-
-This script tests a normal round of Blackjack: betting, dealing, hitting, and standing.
-
-### Step-by-Step Flow
-
-```mermaid
-sequenceDiagram
-    participant PS as PowerShell Script
-    participant Edge as Edge Browser
-    participant Game as Blackjack Game
-
-    Note over PS: 🚀 SETUP
-    PS->>Edge: Launch in headless mode (invisible)
-    PS->>Edge: Connect via WebSocket (CDP)
-
-    Note over PS: 📸 Screenshot: 01-initial
-    PS->>Game: Check initial bankroll
-
-    Note over PS: 💰 PLACE BET
-    PS->>Game: Click $25 chip (twice = $50 bet)
-    PS->>Game: Click "Deal" button
-
-    Note over PS: ⏳ Wait for cards to be dealt...
-    Game-->>PS: Phase = "playerTurn"
-
-    Note over PS: 📸 Screenshot: 02-dealt
-    PS->>Game: Read player cards & dealer's face-up card
-    PS->>Game: Read odds badge
-
-    Note over PS: 👊 HIT
-    PS->>Game: Click "Hit" button
-
-    Note over PS: 📸 Screenshot: 03-after-hit
-    PS->>Game: Read updated hand & odds
-
-    Note over PS: 🖐️ STAND
-    PS->>Game: Click "Stand" button
-
-    Note over PS: ⏳ Wait for dealer to play & round to finish...
-    Game-->>PS: Phase = "betting"
-
-    Note over PS: 📸 Screenshot: 04-after-stand-result
-    PS->>Game: Read final bankroll, dealer cards, stats
-
-    Note over PS: 📸 Screenshot: 05-back-to-betting
-    PS->>Game: Check history table & stats row
-    PS->>Game: Check for console errors
-
-    Note over PS: 🧹 CLEANUP
-    PS->>Edge: Close WebSocket
-    PS->>Edge: Kill Edge process
-```
-
-### What It Checks
-
-| Step | What It Verifies |
-|------|-----------------|
-| Initial state | Game loads with correct bankroll |
-| Bet & Deal | Clicking chips and Deal button works |
-| Player Turn | Cards are dealt, phase changes correctly |
-| Hit | Player receives a card, odds update |
-| Stand | Dealer plays, round resolves, bankroll updates |
-| History | Results are recorded in the history table |
-| Errors | No JavaScript errors occurred |
-
----
-
-## 📝 Test Script #2: `cdp-test2.ps1` — Split & Double Down
-
-This script tests **advanced moves** that are harder to test manually because you need specific card combinations.
-
-### 🃏 The "Rigged Deck" Trick
-
-To test a Split, you need two cards of the same rank. To test Double Down, you need a hand totaling 11. The script **rigs the shoe** (deck) by pushing specific cards onto the top:
+The scripts launch Microsoft Edge in headless mode and connect to it through the Chrome DevTools Protocol. CDP lets PowerShell evaluate JavaScript in the loaded page, click DOM controls, read game state, and capture screenshots.
 
 ```mermaid
 flowchart LR
-    subgraph SHOE["🂠 Rigged Shoe (stack - last in, first out)"]
-        direction TB
-        A["8♣ ← dealt 1st (player card 1)"]
-        B["6♥ ← dealt 2nd (dealer face-up)"]
-        C["8♠ ← dealt 3rd (player card 2)"]
-        D["2♦ ← dealt 4th (dealer hole card)"]
-    end
-
-    SHOE --> E["Player gets: 8♣ + 8♠ = a PAIR!"]
-    E --> F["Split button becomes available ✅"]
+    PS["PowerShell test script"] --> CDP["Chrome DevTools Protocol"]
+    CDP --> Edge["Headless Microsoft Edge"]
+    Edge --> Game["index.html"]
+    Edge --> Shots[".test/shots/*.png"]
 ```
 
-### Split Test Flow
+Each script creates a temporary Edge profile, opens the local `index.html` file, connects over a WebSocket debugger endpoint, runs the scenario, saves screenshots, then closes Edge and removes the temporary profile.
 
-```mermaid
-sequenceDiagram
-    participant PS as PowerShell Script
-    participant Game as Blackjack Game
+## `cdp-test.ps1`: Basic Gameplay
 
-    Note over PS: 🃏 Rig the deck with a pair of 8s
-    PS->>Game: Inject cards into shoe
+This script validates a normal round from the betting screen through final resolution.
 
-    PS->>Game: Bet $50, click Deal
-    Game-->>PS: Player has 8♣ + 8♠ (a pair!)
+Flow:
 
-    Note over PS: 📸 Screenshot: 06-split-pair-dealt
-    PS->>Game: Verify Split button is enabled
+1. Open the game and capture the initial state.
+2. Place a `$50` bet using two `$25` chip clicks.
+3. Deal the hand and wait for `phase === "playerTurn"`.
+4. Capture dealt cards and verify the odds badge has rendered.
+5. Hit once when available.
+6. Capture the updated player hand and odds value.
+7. Stand when available.
+8. Wait for the dealer to finish and the game to return to betting.
+9. Capture final bankroll, dealer cards, stats, history, and visible scoreboard cells.
+10. Check the page error hook for JavaScript errors.
 
-    PS->>Game: Click "Split" button
-    Note over Game: Hand splits into TWO hands!
-    Note over Game: Each hand gets one new card
+Expected evidence:
 
-    Note over PS: 📸 Screenshot: 07-after-split
-    PS->>Game: Verify two separate hands exist
-    PS->>Game: Verify bankroll decreased (split costs extra bet)
+| Screenshot | Purpose |
+|---|---|
+| `01-initial.png` | Game loaded and ready for betting |
+| `02-dealt.png` | Initial cards dealt and player turn active |
+| `03-after-hit.png` | Player hand after a hit |
+| `04-after-stand-result.png` | Dealer resolution after standing |
+| `05-back-to-betting.png` | Betting state restored with history/stats updated |
 
-    PS->>Game: Stand on hand 1
-    PS->>Game: Stand on hand 2
-    Note over Game: Dealer plays, both hands resolve
+## `cdp-test2.ps1`: Split and Double Down
 
-    Note over PS: 📸 Screenshot: 08-split-resolved
-    PS->>Game: Check final bankroll & stats
+This script covers actions that require specific starting cards. It replaces the shoe with a controlled shoe immediately before each scenario, then drives the UI normally.
+
+### Split Scenario
+
+The script rigs a pair of 8s so the Split button should be available after the deal.
+
+Flow:
+
+1. Inject a shoe that deals player `8,8` with a dealer up-card.
+2. Place a `$50` bet and deal.
+3. Verify the Split button is enabled.
+4. Click Split.
+5. Confirm two player hands exist, each with its own bet.
+6. Stand both hands.
+7. Wait for resolution and capture bankroll, stats, and history.
+
+Expected evidence:
+
+| Screenshot | Purpose |
+|---|---|
+| `06-split-pair-dealt.png` | Pair dealt and Split available |
+| `07-after-split.png` | Two player hands rendered after splitting |
+| `08-split-resolved.png` | Split round resolved and recorded |
+
+### Double Down Scenario
+
+The script rigs an 11-value player hand so Double Down should be available after the deal.
+
+Flow:
+
+1. Inject a shoe that deals player `5,6`.
+2. Deal the hand.
+3. Verify the Double Down button is enabled.
+4. Click Double Down.
+5. Confirm the bet is doubled, exactly one card is drawn, and the hand is no longer active.
+6. Wait for resolution and capture bankroll, stats, and history.
+
+Expected evidence:
+
+| Screenshot | Purpose |
+|---|---|
+| `09-double-dealt.png` | 11-value hand dealt and Double Down available |
+| `10-after-double.png` | Bet doubled and one card drawn |
+| `11-double-resolved.png` | Double-down round resolved and recorded |
+
+## Validation Points
+
+The scripts check both DOM-level behavior and game-state behavior:
+
+| Area | What is validated |
+|---|---|
+| Browser load | `index.html` opens through Edge and exposes `BJ.getState()` |
+| Betting | Chip clicks update the bet and Deal starts the round |
+| State machine | Phases advance through betting, player turn, dealer turn, and result |
+| Actions | Hit, Stand, Split, and Double Down are enabled only when expected |
+| Rendering | Cards, hand labels, odds badge, history, and stats are visible in screenshots |
+| Bankroll | Bets are deducted and payouts return the game to a consistent bankroll |
+| Determinism | Rigged shoes make Split and Double Down scenarios repeatable |
+| Errors | The basic test reports any captured JavaScript errors |
+
+## Running the Tests
+
+From the project root in PowerShell:
+
+```powershell
+.\.test\cdp-test.ps1
+.\.test\cdp-test2.ps1
 ```
 
-### Double Down Test Flow
+Requirements:
 
-```mermaid
-sequenceDiagram
-    participant PS as PowerShell Script
-    participant Game as Blackjack Game
+- Windows with Microsoft Edge installed at the path used by the scripts
+- The project checked out at `C:\Users\chris\GitHub_Projects\Blackjack`, unless the script paths are updated
+- PowerShell execution policy that allows local scripts to run
 
-    Note over PS: 🃏 Rig deck for an 11-value hand (5+6)
-    PS->>Game: Inject cards into shoe
+Screenshots are written to:
 
-    PS->>Game: Bet, click Deal
-    Game-->>PS: Player has 5♣ + 6♠ = 11
-
-    Note over PS: 📸 Screenshot: 09-double-dealt
-    PS->>Game: Verify Double button is enabled
-
-    PS->>Game: Click "Double Down" button
-    Note over Game: Bet is doubled!
-    Note over Game: Player gets exactly ONE more card
-    Note over Game: Hand automatically stands
-
-    Note over PS: 📸 Screenshot: 10-after-double
-    PS->>Game: Verify bet was doubled
-    PS->>Game: Verify hand has exactly 3 cards
-
-    Note over Game: Dealer plays, round resolves
-
-    Note over PS: 📸 Screenshot: 11-double-resolved
-    PS->>Game: Check final bankroll & stats
+```text
+.test\shots\
 ```
 
----
+## Current Limitations
 
-## 🖥️ Key Concepts Explained
+The CDP tests are useful smoke coverage, but they are not exhaustive. Areas that would benefit from additional targeted tests include:
 
-### Headless Browser
-
-```mermaid
-graph TD
-    A[Normal Browser] -->|has| B[Visible window you can see]
-    C[Headless Browser] -->|NO window| D[Runs invisibly in background]
-    C -->|still loads| E[All HTML, CSS, JavaScript]
-    C -->|can still| F[Take screenshots]
-```
-
-The `--headless=new` flag tells Edge to run without showing a window. The game still loads and works — you just can't see it! The test takes screenshots so you can see what happened.
-
-### WebSocket Connection
-
-```mermaid
-graph LR
-    A[Script] <-->|"Two-way connection (WebSocket)"| B[Browser]
-
-    A -->|"Send: 'click this button'"| B
-    B -->|"Reply: 'done, here's the result'"| A
-```
-
-A WebSocket is like a phone call between the script and the browser — both sides can talk at any time. This is how the script sends commands and gets responses.
-
-### The `Send-CDP` Function
-
-This is the heart of the test. It:
-1. Packages a command as JSON
-2. Sends it to Edge via WebSocket
-3. Waits for and returns the response
-
-### The `Eval` Function
-
-A shortcut that runs JavaScript inside the browser page. For example:
-- `Eval "document.getElementById('btnHit').click()"` → clicks the Hit button
-- `Eval "BJ.getState().phase"` → reads what phase the game is in
-
-### The `Screenshot` Function
-
-Takes a picture of the browser page and saves it as a PNG file in the `shots/` folder.
-
----
-
-## 📸 Screenshots Produced
-
-The `shots/` folder contains visual evidence from each test run:
-
-| Screenshot | What It Shows |
-|-----------|---------------|
-| `01-initial.png` | Game loaded, ready to bet |
-| `02-dealt.png` | Cards dealt, player's turn |
-| `03-after-hit.png` | After player hits |
-| `04-after-stand-result.png` | Round result after standing |
-| `05-back-to-betting.png` | Back to betting phase |
-| `06-split-pair-dealt.png` | Pair of 8s dealt (ready to split) |
-| `07-after-split.png` | After splitting into two hands |
-| `08-split-resolved.png` | Split round finished |
-| `09-double-dealt.png` | Hand of 11 dealt (ready to double) |
-| `10-after-double.png` | After doubling down |
-| `11-double-resolved.png` | Double down round finished |
-
----
-
-## 🔄 Overall Test Architecture
-
-```mermaid
-flowchart TB
-    subgraph Tests["Test Scripts"]
-        T1[cdp-test.ps1<br/>Basic: Bet → Deal → Hit → Stand]
-        T2[cdp-test2.ps1<br/>Advanced: Split & Double Down]
-    end
-
-    subgraph Tech["Technology Stack"]
-        PS[PowerShell<br/>Script language]
-        CDP[Chrome DevTools Protocol<br/>Browser remote control]
-        WS[WebSocket<br/>Two-way communication]
-        Edge[Microsoft Edge<br/>Headless browser]
-    end
-
-    subgraph Game["Your Blackjack Game"]
-        HTML[index.html]
-        JS[JavaScript game logic]
-        UI[User Interface]
-    end
-
-    subgraph Output["Test Output"]
-        SHOTS[Screenshots<br/>.test/shots/*.png]
-        CONSOLE[Console messages<br/>Pass/fail info]
-    end
-
-    T1 & T2 --> PS
-    PS --> CDP
-    CDP --> WS
-    WS --> Edge
-    Edge --> HTML
-    HTML --> JS & UI
-    T1 & T2 --> SHOTS & CONSOLE
-```
-
----
-
-## 💡 Summary for New Developers
-
-| Question | Answer |
-|----------|--------|
-| **What language are the tests in?** | PowerShell (`.ps1` files) — a scripting language built into Windows |
-| **Why not just test manually?** | Tests can run automatically every time you change code, catching bugs instantly |
-| **What does "headless" mean?** | The browser runs without a visible window (like a background process) |
-| **What is CDP?** | Chrome DevTools Protocol — lets code control a browser remotely |
-| **Why rig the deck?** | To test specific scenarios (like splits) that would be random otherwise |
-| **What are the screenshots for?** | Visual proof that the game looked correct at each step |
-| **Do I need to run these?** | They've already been run! The screenshots in `shots/` are the results |
-
----
-
-## 🚀 How to Run the Tests Yourself
-
-1. Open **PowerShell** on Windows
-2. Navigate to your project folder: `cd C:\Users\chris\GitHub_Projects\Blackjack`
-3. Run: `.\.test\cdp-test.ps1` (basic test)
-4. Run: `.\.test\cdp-test2.ps1` (advanced test)
-5. Check the `.test\shots\` folder for new screenshots!
-
-> ⚠️ **Note:** You need Microsoft Edge installed, and the file paths in the scripts need to match your computer's setup.
+- Natural blackjack payout and dealer/player simultaneous blackjack
+- Bust handling for player and dealer
+- Push outcomes
+- Bankrupt overlay
+- Reshuffle threshold behavior
+- Keyboard shortcuts
+- Odds-calculation sanity checks for known hand situations
+- Unit tests for pure logic in `hand.js`, `shoe.js`, and `odds.js`
